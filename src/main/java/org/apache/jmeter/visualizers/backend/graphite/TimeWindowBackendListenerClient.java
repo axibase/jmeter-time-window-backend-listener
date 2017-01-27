@@ -41,15 +41,12 @@ public class TimeWindowBackendListenerClient extends AbstractBackendListenerClie
 
     private static final int MAX_POOL_SIZE = 1;
     private static final String SEPARATOR = ";";
-    private Integer count = 0;
+    private Integer count;
     private List<SampleResult> batch = new ArrayList<>();
     private ScheduledExecutorService scheduler;
     private ScheduledFuture<?> timerHandle;
     private GraphiteMetricsSender graphiteMetricsManager;
-    private String rootMetricsPrefix;
-    private Set<Double> percentilies;
-    private int graphitePort;
-    private String graphiteHost;
+    private Set<Double> percentiles;
 
     public TimeWindowBackendListenerClient() {
         count = 0;
@@ -80,22 +77,22 @@ public class TimeWindowBackendListenerClient extends AbstractBackendListenerClie
 
     @Override
     public void setupTest(BackendListenerContext context) throws Exception {
-        graphiteHost = context.getParameter(GRAPHITE_HOST);
-        graphitePort = context.getIntParameter(GRAPHITE_PORT, DEFAULT_PLAINTEXT_PROTOCOL_PORT);
-        rootMetricsPrefix = context.getParameter(ROOT_METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
+        String graphiteHost = context.getParameter(GRAPHITE_HOST);
+        int graphitePort = context.getIntParameter(GRAPHITE_PORT, DEFAULT_PLAINTEXT_PROTOCOL_PORT);
+        String rootMetricsPrefix = context.getParameter(ROOT_METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
         String graphiteMetricsSenderClass = context.getParameter(GRAPHITE_METRICS_SENDER);
         Class<?> clazz = Class.forName(graphiteMetricsSenderClass);
         this.graphiteMetricsManager = (GraphiteMetricsSender) clazz.newInstance();
         graphiteMetricsManager.setup(graphiteHost, graphitePort, rootMetricsPrefix);
-        rootMetricsPrefix = context.getParameter(ROOT_METRICS_PREFIX, DEFAULT_METRICS_PREFIX);
         String[] percentilesStringArray = context.getParameter(PERCENTILES, DEFAULT_METRICS_PREFIX).split(SEPARATOR);
-        percentilies = new HashSet<>();
+        percentiles = new HashSet<>();
         for (String percentilesString : percentilesStringArray) {
-            if (!StringUtils.isEmpty(percentilesString.trim())) {
+            String percentileText = percentilesString.trim();
+            if (!StringUtils.isEmpty(percentileText)) {
                 try {
-                    Double percentileValue = Double.valueOf(percentilesString.trim());
+                    Double percentileValue = Double.valueOf(percentileText);
                     if (percentileValue >= 0 && percentileValue < 100) {
-                        percentilies.add(percentileValue);
+                        percentiles.add(percentileValue);
                     } else {
                         LOGGER.error(String.format("Incorrect value %f for percentile", percentileValue));
                     }
@@ -143,7 +140,7 @@ public class TimeWindowBackendListenerClient extends AbstractBackendListenerClie
             }
         }
 
-        for (Double value : percentilies) {
+        for (Double value : percentiles) {
             DecimalFormat df = new DecimalFormat("###.#");
             if (statistic.getTotal() > 0) {
                 graphiteMetricsManager.addMetric(time,
